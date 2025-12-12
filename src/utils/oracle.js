@@ -40,9 +40,7 @@ export async function getLatestPrice(assetSymbol, provider) {
     // Check if price is stale (updated more than 1 hour ago)
     const updatedAt = Number(roundData.updatedAt)
     const now = Math.floor(Date.now() / 1000)
-    if (updatedAt && (now - updatedAt) > 3600) {
-      console.warn(`Price for ${assetSymbol} may be stale (last updated ${Math.floor((now - updatedAt) / 60)} minutes ago)`)
-    }
+    // Price staleness is handled silently - no console warning
     
     // Price is returned as int256 (BigInt), convert to number
     // Handle both BigInt and number types

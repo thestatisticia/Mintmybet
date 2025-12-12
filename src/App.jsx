@@ -23,8 +23,36 @@ const initialPrices = {
   ETH: 0,
 }
 
+// Get page from URL path
+const getPageFromPath = () => {
+  const path = window.location.pathname
+  if (path === '/' || path === '') return 'home'
+  const page = path.slice(1) // Remove leading slash
+  const validPages = ['home', 'dashboard', 'play', 'mypredictions', 'leaderboard']
+  return validPages.includes(page) ? page : 'home'
+}
+
 function App() {
-  const [activePage, setActivePage] = useState('home')
+  const [activePage, setActivePage] = useState(getPageFromPath())
+
+  // Sync URL with activePage state
+  useEffect(() => {
+    const path = activePage === 'home' ? '/' : `/${activePage}`
+    if (window.location.pathname !== path) {
+      window.history.pushState({ page: activePage }, '', path)
+    }
+  }, [activePage])
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const page = getPageFromPath()
+      setActivePage(page)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedAsset, setSelectedAsset] = useState('QIE')
   const [selectedPrediction, setSelectedPrediction] = useState('UP')
   const [selectedDuration, setSelectedDuration] = useState('30m')
@@ -342,7 +370,6 @@ function App() {
       
       if (accounts && accounts.length > 0) {
         setWalletAddress(accounts[0])
-        console.log('Wallet connected:', accounts[0], provider.isQieWallet ? '(QIE Wallet)' : '(MetaMask)')
       }
     } catch (error) {
       console.error('Error connecting wallet:', error)
@@ -365,7 +392,6 @@ function App() {
     setActivePredictions([])
     setResolvedPredictions([])
     setClaimCooldown(0)
-    console.log('Wallet disconnected')
   }
 
   // Fetch wallet statistics
@@ -633,7 +659,6 @@ function App() {
       const tx = await contract.claimDailyBonus()
       await tx.wait()
       
-      alert('Daily bonus claimed! +1 point added to your account.')
       await fetchWalletStats()
       await fetchLeaderboard()
       await fetchClaimCooldown() // Refresh cooldown
@@ -689,7 +714,6 @@ function App() {
       const tx = await contract.mintPrediction(selectedAsset, selectedPrediction, durationMinutes)
       await tx.wait()
       
-      alert('Prediction NFT minted successfully!')
       await fetchPredictions()
       await fetchWalletStats()
       await fetchRoundData() // Refresh round data
@@ -734,17 +758,6 @@ function App() {
       const predictionAfter = await contract.getPrediction(tokenId)
       const outcome = predictionAfter.outcome
       
-      // Calculate points based on rarity
-      let pointsAwarded = 0
-      if (outcome === 'WIN') {
-        if (predictionBefore.rarity === 'Common') pointsAwarded = 1
-        else if (predictionBefore.rarity === 'Rare') pointsAwarded = 2
-        else if (predictionBefore.rarity === 'Epic') pointsAwarded = 3
-        alert(`🎉 WIN! Prediction resolved successfully! +${pointsAwarded} points awarded!`)
-      } else {
-        alert('Prediction resolved. LOSE - 0.5 points deducted.')
-      }
-      
       await fetchPredictions()
       await fetchWalletStats()
       await fetchLeaderboard()
@@ -782,7 +795,6 @@ function App() {
       const tx = await contract.mintResolvedNFT(tokenId, { value: mintFee })
       await tx.wait()
       
-      alert('NFT minted to wallet successfully!')
       await fetchPredictions()
       await fetchWalletStats()
     } catch (error) {
@@ -846,7 +858,7 @@ function App() {
         {activePage !== 'home' && (
         <div className="nav-links">
           <a
-            href="#dashboard"
+            href="/dashboard"
             className={activePage === 'dashboard' ? 'active' : ''}
             onClick={(e) => {
               e.preventDefault()
@@ -856,7 +868,7 @@ function App() {
             Dashboard
           </a>
           <a
-            href="#play"
+            href="/play"
             className={activePage === 'play' ? 'active' : ''}
             onClick={(e) => {
               e.preventDefault()
@@ -866,7 +878,7 @@ function App() {
             Play
           </a>
           <a
-            href="#mypredictions"
+            href="/mypredictions"
             className={activePage === 'mypredictions' ? 'active' : ''}
             onClick={(e) => {
               e.preventDefault()
@@ -876,7 +888,7 @@ function App() {
             My Predictions
           </a>
           <a
-            href="#leaderboard"
+            href="/leaderboard"
             className={activePage === 'leaderboard' ? 'active' : ''}
             onClick={(e) => {
               e.preventDefault()
@@ -1921,7 +1933,6 @@ function PredictionDetailModal({
             setLivePrice(price)
             setLastPriceUpdate(Date.now())
           } else {
-            console.warn(`Invalid price received for ${prediction.asset}:`, price)
             // Fallback to prices from main feed
             if (prices[prediction.asset] && prices[prediction.asset] > 0) {
               setLivePrice(prices[prediction.asset])
