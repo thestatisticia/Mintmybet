@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef, memo } from 'react'
 import './App.css'
 
 const allAssets = ['QIE', 'XRP', 'BTC', 'SOL', 'ETH']
@@ -38,7 +38,7 @@ function App() {
   const [walletBalance, setWalletBalance] = useState('0.00')
   const [nftCount, setNftCount] = useState(0)
   const [userStats, setUserStats] = useState(null)
-  const [isLoadingPrices, setIsLoadingPrices] = useState(false)
+  // Removed isLoadingPrices to reduce re-renders - prices update silently
   const [priceChanges, setPriceChanges] = useState({}) // Track price changes for each asset
   const previousPricesRef = useRef(initialPrices) // Use ref to track previous prices without causing re-renders
   const [activePredictions, setActivePredictions] = useState([])
@@ -111,7 +111,6 @@ function App() {
       if (!isMounted) return
       
       try {
-        setIsLoadingPrices(true)
         const { ethers } = await import('ethers')
         const { getLatestPrice } = await import('./utils/oracle.js')
         const { QIE_RPC_URL } = await import('./utils/contract.js')
@@ -119,6 +118,7 @@ function App() {
         const provider = new ethers.JsonRpcProvider(QIE_RPC_URL)
         const newPrices = {}
         const newPriceChanges = {}
+        let hasChanges = false
         
         // Get previous prices from ref for comparison
         const prevPrices = previousPricesRef.current
@@ -128,21 +128,18 @@ function App() {
           try {
             const price = await getLatestPrice(asset, provider)
             if (price && price > 0) {
-              console.log(`✅ ${asset} price updated: $${price.toFixed(4)}`)
               return { asset, price, error: null }
             } else {
-              console.warn(`⚠️ ${asset} returned invalid price:`, price)
               return { asset, price: null, error: new Error('Invalid price') }
             }
           } catch (error) {
-            console.error(`❌ Error fetching price for ${asset}:`, error.message || error)
             return { asset, price: null, error }
           }
         })
         
         const priceResults = await Promise.all(pricePromises)
         
-        // Process results
+        // Process results and only update if prices actually changed
         for (const { asset, price, error } of priceResults) {
           if (error || price === null || price === 0) {
             // Keep previous price if fetch fails
@@ -154,19 +151,35 @@ function App() {
               isNeutral: true
             }
           } else {
-            newPrices[asset] = price
+            // Only update if price changed significantly (more than 0.01% to prevent micro-updates)
+            const prevPrice = prevPrices[asset] || 0
+            const priceDiff = prevPrice > 0 ? Math.abs((price - prevPrice) / prevPrice) : 1
             
-            // Calculate price change if we have a previous price
-            if (prevPrices[asset] && prevPrices[asset] > 0 && price > 0) {
-              const change = ((price - prevPrices[asset]) / prevPrices[asset]) * 100
-              newPriceChanges[asset] = {
-                percentage: change,
-                isUp: change > 0,
-                isDown: change < 0,
-                isNeutral: Math.abs(change) < 0.001 // Consider very small changes as neutral
+            if (priceDiff > 0.0001 || prevPrice === 0) {
+              newPrices[asset] = price
+              hasChanges = true
+              
+              // Calculate price change if we have a previous price
+              if (prevPrice > 0) {
+                const change = ((price - prevPrice) / prevPrice) * 100
+                newPriceChanges[asset] = {
+                  percentage: change,
+                  isUp: change > 0,
+                  isDown: change < 0,
+                  isNeutral: Math.abs(change) < 0.001 // Consider very small changes as neutral
+                }
+              } else {
+                newPriceChanges[asset] = {
+                  percentage: 0,
+                  isUp: false,
+                  isDown: false,
+                  isNeutral: true
+                }
               }
             } else {
-              newPriceChanges[asset] = {
+              // Price hasn't changed significantly, keep previous values
+              newPrices[asset] = prevPrice
+              newPriceChanges[asset] = priceChanges[asset] || {
                 percentage: 0,
                 isUp: false,
                 isDown: false,
@@ -176,26 +189,27 @@ function App() {
           }
         }
         
-        if (isMounted) {
+        if (isMounted && hasChanges) {
           // Update ref with new prices before setting state
           previousPricesRef.current = { ...newPrices }
-          setPrices(newPrices)
-          setPriceChanges(newPriceChanges)
+          // Use requestAnimationFrame to batch updates and prevent screen shaking
+          requestAnimationFrame(() => {
+            if (isMounted) {
+              setPrices(newPrices)
+              setPriceChanges(newPriceChanges)
+            }
+          })
         }
       } catch (error) {
         console.error('Error fetching prices:', error)
-      } finally {
-        if (isMounted) {
-          setIsLoadingPrices(false)
-        }
       }
     }
 
     // Fetch immediately
     fetchPrices()
     
-    // Then fetch every 5 seconds for more real-time updates
-    const interval = setInterval(fetchPrices, 5000)
+    // Then fetch every 15 seconds to reduce re-renders and prevent screen shaking
+    const interval = setInterval(fetchPrices, 15000)
     
     return () => {
       isMounted = false
@@ -203,20 +217,58 @@ function App() {
     }
   }, []) // Empty dependency array - using ref to avoid dependency issues
 
-  // Handle scroll to show footer
+  // Handle scroll to show footer - using stable calculation to prevent shaking
+  const footerTransitionRef = useRef(false)
+  
   useEffect(() => {
+    let rafId = null
+    let lastState = showFooter
+    let ignoreUpdates = false
+    
     const handleScroll = () => {
-      const scrollHeight = document.documentElement.scrollHeight
-      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop
-      const clientHeight = document.documentElement.clientHeight
-      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100
-      setShowFooter(isNearBottom)
+      if (rafId || ignoreUpdates || footerTransitionRef.current) return // Already scheduled or transitioning
+      
+      rafId = requestAnimationFrame(() => {
+        const scrollY = window.scrollY || document.documentElement.scrollTop
+        const windowHeight = window.innerHeight
+        const documentHeight = document.documentElement.scrollHeight
+        
+        // Check if we're within 200px of the bottom
+        const distanceFromBottom = documentHeight - (scrollY + windowHeight)
+        const isNearBottom = distanceFromBottom < 200
+        
+        // Only update if state actually changed
+        if (isNearBottom !== lastState && !footerTransitionRef.current) {
+          lastState = isNearBottom
+          footerTransitionRef.current = true
+          setShowFooter(isNearBottom)
+          
+          // Re-enable updates after transition completes (400ms)
+          setTimeout(() => {
+            footerTransitionRef.current = false
+          }, 450)
+        }
+        
+        rafId = null
+      })
     }
 
-    window.addEventListener('scroll', handleScroll)
+    // Throttle scroll events more aggressively
+    let scrollTimeout
+    const throttledScroll = () => {
+      clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(handleScroll, 100)
+    }
+
+    window.addEventListener('scroll', throttledScroll, { passive: true })
     handleScroll() // Check initial state
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    
+    return () => {
+      window.removeEventListener('scroll', throttledScroll)
+      if (rafId) cancelAnimationFrame(rafId)
+      clearTimeout(scrollTimeout)
+    }
+  }, [showFooter])
 
   // Fetch claim cooldown from contract
   const fetchClaimCooldown = async () => {
@@ -342,28 +394,37 @@ function App() {
       // Fetch wallet balance
       const balance = await provider.getBalance(walletAddress)
       const balanceInQIE = ethers.formatEther(balance)
-      setWalletBalance(parseFloat(balanceInQIE).toFixed(2))
+      const newBalance = parseFloat(balanceInQIE).toFixed(2)
       
       // Fetch NFT count from contract
       try {
         // Use provider directly for read operations
         const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider)
         const count = await contract.balanceOf(walletAddress)
-        setNftCount(Number(count))
+        const newNftCount = Number(count)
         
         // Fetch user stats
         const stats = await contract.getUserStats(walletAddress)
-        setUserStats({
+        const newUserStats = {
           points: formatPoints(stats.points),
           wins: Number(stats.wins),
           losses: Number(stats.losses),
           streak: Number(stats.streak),
           winRate: (Number(stats.winRate) / 100).toFixed(1),
+        }
+        
+        // Batch updates using requestAnimationFrame to prevent shaking
+        requestAnimationFrame(() => {
+          setWalletBalance(newBalance)
+          setNftCount(newNftCount)
+          setUserStats(newUserStats)
         })
       } catch (error) {
         console.error('Error fetching contract data:', error)
-        setNftCount(0)
-        setUserStats(null)
+        requestAnimationFrame(() => {
+          setNftCount(0)
+          setUserStats(null)
+        })
       }
     } catch (error) {
       console.error('Error fetching wallet stats:', error)
@@ -931,11 +992,6 @@ function App() {
               <div className="section-header">
                 <h3>Live Oracle Feed</h3>
                 <span className="pulse-indicator"></span>
-                {isLoadingPrices && (
-                  <span style={{ fontSize: '12px', color: '#9fb2d7', marginLeft: '8px' }}>
-                    Updating...
-                  </span>
-                )}
               </div>
               <div className="oracle-grid">
                 {allAssets.map((asset) => {
@@ -950,33 +1006,35 @@ function App() {
                   return (
                   <div key={asset} className="oracle-item">
                     <div className="oracle-asset">{asset}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
-                    <div className="oracle-price">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between', minHeight: '32px' }}>
+                    <div className="oracle-price" style={{ minWidth: '100px', transition: 'none' }}>
                           {prices[asset] ? (
                             `$${prices[asset].toLocaleString(undefined, { maximumFractionDigits: 4 })}`
                           ) : (
                             <span style={{ color: '#9fb2d7' }}>Loading...</span>
                           )}
                         </div>
-                        {!priceChange.isNeutral && (
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            color: changeColor,
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            backgroundColor: `${changeColor}15`
-                          }}>
-                            <span>{priceChange.isUp ? '↑' : '↓'}</span>
-                            <span>{changeText}</span>
-                          </div>
-                        )}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: changeColor,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: `${changeColor}15`,
+                          minWidth: priceChange.isNeutral ? '0px' : '50px',
+                          opacity: priceChange.isNeutral ? 0 : 1,
+                          transition: 'opacity 0.2s ease, min-width 0.2s ease',
+                          overflow: 'hidden'
+                        }}>
+                          <span>{priceChange.isUp ? '↑' : priceChange.isDown ? '↓' : ''}</span>
+                          <span>{changeText}</span>
+                        </div>
                     </div>
-                    <div className="oracle-chart" style={{ display: 'block', visibility: 'visible' }}>
-                      <svg width="100" height="24" viewBox="0 0 100 24" preserveAspectRatio="none">
+                    <div className="oracle-chart" style={{ display: 'block', visibility: 'visible', transition: 'none' }}>
+                      <svg width="100" height="24" viewBox="0 0 100 24" preserveAspectRatio="none" style={{ display: 'block' }}>
                         <path
                             d={priceChange.isUp 
                               ? "M 0,20 Q 10,15 20,12 T 40,8 T 60,6 T 80,4 T 100,2"
@@ -989,6 +1047,7 @@ function App() {
                           strokeWidth="1.5"
                           strokeLinecap="round"
                             opacity={0.8}
+                            style={{ transition: 'stroke 0.3s ease' }}
                         />
                       </svg>
                     </div>
@@ -1778,34 +1837,32 @@ function App() {
         />
       )}
 
-      {/* Footer - only visible when scrolled to bottom */}
-      {showFooter && (
-        <footer className="app-footer">
-          <div className="footer-separator"></div>
-          <div className="footer-content">
-            <div className="footer-left">
-              <p>© 2025 QieLand All rights reserved</p>
-            </div>
-            <div className="footer-right">
-              <a href="https://t.me" target="_blank" rel="noopener noreferrer" className="footer-link">Telegram</a>
-              <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="footer-link">X</a>
-              <a href="https://discord.com" target="_blank" rel="noopener noreferrer" className="footer-link">Discord</a>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="footer-link">
-                GitHub
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }}>
-                  <rect x="2" y="2" width="8" height="8" fill="currentColor" opacity="0.4"/>
-                </svg>
-              </a>
-              <a href="https://docs.qie.digital" target="_blank" rel="noopener noreferrer" className="footer-link">
-                Docs
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }}>
-                  <path d="M2 2h2v2H2V2zm0 3h2v2H2V5zm0 3h2v2H2V8zm3-6h5v1H5V2zm0 3h5v1H5V5zm0 3h5v1H5V8z" fill="currentColor" opacity="0.4"/>
-                </svg>
-              </a>
-            </div>
+      {/* Footer - always rendered but with visibility/opacity to prevent layout shifts */}
+      <footer className={`app-footer ${showFooter ? 'visible' : 'hidden'}`}>
+        <div className="footer-separator"></div>
+        <div className="footer-content">
+          <div className="footer-left">
+            <p>© 2025 QieLand All rights reserved</p>
           </div>
-        </footer>
-      )}
+          <div className="footer-right">
+            <a href="https://t.me" target="_blank" rel="noopener noreferrer" className="footer-link">Telegram</a>
+            <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="footer-link">X</a>
+            <a href="https://discord.com" target="_blank" rel="noopener noreferrer" className="footer-link">Discord</a>
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="footer-link">
+              GitHub
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }}>
+                <rect x="2" y="2" width="8" height="8" fill="currentColor" opacity="0.4"/>
+              </svg>
+            </a>
+            <a href="https://docs.qie.digital" target="_blank" rel="noopener noreferrer" className="footer-link">
+              Docs
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }}>
+                <path d="M2 2h2v2H2V2zm0 3h2v2H2V5zm0 3h2v2H2V8zm3-6h5v1H5V2zm0 3h5v1H5V5zm0 3h5v1H5V8z" fill="currentColor" opacity="0.4"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
@@ -1863,8 +1920,8 @@ function PredictionDetailModal({
 
       // Fetch immediately
       fetchLivePrice()
-      // Update every 3 seconds for unresolved predictions (more frequent)
-      const interval = setInterval(fetchLivePrice, 3000)
+      // Update every 15 seconds to reduce re-renders
+      const interval = setInterval(fetchLivePrice, 15000)
       return () => clearInterval(interval)
     } else {
       // For resolved predictions, clear live price

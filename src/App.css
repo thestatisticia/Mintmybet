@@ -95,6 +95,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
+  contain: layout;
 }
 
 .oracle-item {
@@ -102,6 +103,12 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.3);
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  contain: layout style paint;
+  will-change: auto;
 }
 
 
@@ -116,6 +123,9 @@
   font-size: 18px;
   font-weight: 700;
   margin-bottom: 8px;
+  min-width: 100px;
+  text-align: left;
+  contain: layout;
 }
 
 .oracle-chart {
@@ -123,11 +133,14 @@
   width: 100%;
   margin-top: 8px;
   opacity: 0.8;
+  flex-shrink: 0;
+  contain: layout paint;
 }
 
 .oracle-chart svg {
   width: 100%;
   height: 100%;
+  display: block;
 }
 
 .wallet-stats {
@@ -1456,10 +1469,33 @@
 
 /* Footer Styles */
 .app-footer {
+  position: relative;
   width: 100%;
   padding: 24px;
   background: #000000;
   margin-top: 60px;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  will-change: opacity, transform;
+  contain: layout style paint;
+}
+
+.app-footer.hidden {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+  visibility: hidden;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.app-footer.visible {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+  height: auto;
 }
 
 .footer-separator {
