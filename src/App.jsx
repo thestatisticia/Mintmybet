@@ -50,7 +50,7 @@ function App() {
   const [selectedPredictionView, setSelectedPredictionView] = useState(null)
   const [currentPriceForView, setCurrentPriceForView] = useState(null)
   const [hiddenNFTs, setHiddenNFTs] = useState(new Set())
-  const [showFooter, setShowFooter] = useState(false)
+  // Footer is always visible now
   const [showDocs, setShowDocs] = useState(false)
 
   // Fetch current round and active assets from contract
@@ -218,58 +218,6 @@ function App() {
     }
   }, []) // Empty dependency array - using ref to avoid dependency issues
 
-  // Handle scroll to show footer - using stable calculation to prevent shaking
-  const footerTransitionRef = useRef(false)
-  
-  useEffect(() => {
-    let rafId = null
-    let lastState = showFooter
-    let ignoreUpdates = false
-    
-    const handleScroll = () => {
-      if (rafId || ignoreUpdates || footerTransitionRef.current) return // Already scheduled or transitioning
-      
-      rafId = requestAnimationFrame(() => {
-        const scrollY = window.scrollY || document.documentElement.scrollTop
-        const windowHeight = window.innerHeight
-        const documentHeight = document.documentElement.scrollHeight
-        
-        // Check if we're within 200px of the bottom
-        const distanceFromBottom = documentHeight - (scrollY + windowHeight)
-        const isNearBottom = distanceFromBottom < 200
-        
-        // Only update if state actually changed
-        if (isNearBottom !== lastState && !footerTransitionRef.current) {
-          lastState = isNearBottom
-          footerTransitionRef.current = true
-          setShowFooter(isNearBottom)
-          
-          // Re-enable updates after transition completes (400ms)
-          setTimeout(() => {
-            footerTransitionRef.current = false
-          }, 450)
-        }
-        
-        rafId = null
-      })
-    }
-
-    // Throttle scroll events more aggressively
-    let scrollTimeout
-    const throttledScroll = () => {
-      clearTimeout(scrollTimeout)
-      scrollTimeout = setTimeout(handleScroll, 100)
-    }
-
-    window.addEventListener('scroll', throttledScroll, { passive: true })
-    handleScroll() // Check initial state
-    
-    return () => {
-      window.removeEventListener('scroll', throttledScroll)
-      if (rafId) cancelAnimationFrame(rafId)
-      clearTimeout(scrollTimeout)
-    }
-  }, [showFooter])
 
   // Fetch claim cooldown from contract
   const fetchClaimCooldown = async () => {
@@ -306,9 +254,23 @@ function App() {
     return () => clearInterval(interval)
   }, [walletAddress])
 
+  // Detect wallet provider (QIE Wallet or MetaMask)
+  const getWalletProvider = () => {
+    // Check for QIE Wallet first
+    if (window.qie && window.qie.isQieWallet) {
+      return window.qie
+    }
+    // Fallback to MetaMask or other EIP-1193 providers
+    if (window.ethereum) {
+      return window.ethereum
+    }
+    return null
+  }
+
   // Connect to QIE network
   const connectToQieNetwork = async () => {
-    if (typeof window.ethereum === 'undefined') {
+    const provider = getWalletProvider()
+    if (!provider) {
       alert('Please install MetaMask or QIE Wallet to connect')
       return false
     }
@@ -316,9 +278,25 @@ function App() {
     try {
       const { addQieNetworkToMetaMask } = await import('./utils/contract.js')
       
-      // Try to switch to QIE network first
+      // For QIE Wallet, it should already be on QIE network
+      if (window.qie && window.qie.isQieWallet) {
+        // QIE Wallet is native to QIE network, just verify chain
+        try {
+          const chainId = await provider.request({ method: 'eth_chainId' })
+          if (chainId !== '0x7c6') {
+            alert('Please switch to QIE Mainnet in your QIE Wallet')
+            return false
+          }
+          return true
+        } catch (error) {
+          console.error('Error checking QIE Wallet chain:', error)
+          return true // Assume QIE Wallet is on correct network
+        }
+      }
+      
+      // For MetaMask, try to switch to QIE network
       try {
-        await window.ethereum.request({
+        await provider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: '0x7c6' }], // 1990 in hex
         })
@@ -333,7 +311,7 @@ function App() {
       return true
     } catch (error) {
       console.error('Error connecting to QIE network:', error)
-      alert('Failed to connect to QIE network. Please add it manually in MetaMask.')
+      alert('Failed to connect to QIE network. Please add it manually in your wallet.')
       return false
     }
   }
@@ -342,7 +320,8 @@ function App() {
   const connectWallet = async () => {
     if (isConnecting) return
     
-    if (typeof window.ethereum === 'undefined') {
+    const provider = getWalletProvider()
+    if (!provider) {
       alert('Please install MetaMask or QIE Wallet to connect your wallet.')
       return
     }
@@ -357,13 +336,13 @@ function App() {
       }
 
       // Request account access
-      const accounts = await window.ethereum.request({ 
+      const accounts = await provider.request({ 
         method: 'eth_requestAccounts' 
       })
       
       if (accounts && accounts.length > 0) {
         setWalletAddress(accounts[0])
-        console.log('Wallet connected:', accounts[0])
+        console.log('Wallet connected:', accounts[0], provider.isQieWallet ? '(QIE Wallet)' : '(MetaMask)')
       }
     } catch (error) {
       console.error('Error connecting wallet:', error)
@@ -377,9 +356,22 @@ function App() {
     }
   }
 
+  // Disconnect wallet function
+  const disconnectWallet = () => {
+    setWalletAddress(null)
+    setWalletBalance('0.00')
+    setNftCount(0)
+    setUserStats(null)
+    setActivePredictions([])
+    setResolvedPredictions([])
+    setClaimCooldown(0)
+    console.log('Wallet disconnected')
+  }
+
   // Fetch wallet statistics
   const fetchWalletStats = async () => {
-    if (!walletAddress || typeof window.ethereum === 'undefined') {
+    const walletProvider = getWalletProvider()
+    if (!walletAddress || !walletProvider) {
       setWalletBalance('0.00')
       setNftCount(0)
       setUserStats(null)
@@ -390,7 +382,7 @@ function App() {
       const { ethers } = await import('ethers')
       const { CONTRACT_ADDRESS, CONTRACT_ABI, formatPoints } = await import('./utils/contract.js')
       
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(walletProvider)
       
       // Fetch wallet balance
       const balance = await provider.getBalance(walletAddress)
@@ -434,7 +426,8 @@ function App() {
 
   // Fetch predictions from contract
   const fetchPredictions = async () => {
-    if (!walletAddress || typeof window.ethereum === 'undefined') {
+    const walletProvider = getWalletProvider()
+    if (!walletAddress || !walletProvider) {
       setActivePredictions([])
       setResolvedPredictions([])
       return
@@ -444,7 +437,7 @@ function App() {
       const { ethers } = await import('ethers')
       const { CONTRACT_ADDRESS, CONTRACT_ABI, formatTimeRemaining } = await import('./utils/contract.js')
       
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(walletProvider)
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider)
       
       // Get user's NFT count
@@ -552,10 +545,11 @@ function App() {
   // Check if wallet is already connected on mount and fetch stats
   useEffect(() => {
     const checkWalletConnection = async () => {
-      if (typeof window.ethereum === 'undefined') return
+      const provider = getWalletProvider()
+      if (!provider) return
 
       try {
-        const accounts = await window.ethereum.request({ 
+        const accounts = await provider.request({ 
           method: 'eth_accounts' 
         })
         
@@ -564,7 +558,7 @@ function App() {
         }
 
         // Listen for account changes
-        window.ethereum.on('accountsChanged', (accounts) => {
+        provider.on('accountsChanged', (accounts) => {
           if (accounts.length > 0) {
             setWalletAddress(accounts[0])
           } else {
@@ -573,7 +567,7 @@ function App() {
         })
 
         // Listen for chain changes
-        window.ethereum.on('chainChanged', () => {
+        provider.on('chainChanged', () => {
           // Reload page when chain changes
           window.location.reload()
         })
@@ -586,9 +580,10 @@ function App() {
 
     // Cleanup listeners on unmount
     return () => {
-      if (window.ethereum) {
-        window.ethereum.removeAllListeners('accountsChanged')
-        window.ethereum.removeAllListeners('chainChanged')
+      const provider = getWalletProvider()
+      if (provider) {
+        provider.removeAllListeners('accountsChanged')
+        provider.removeAllListeners('chainChanged')
       }
     }
   }, [])
@@ -608,6 +603,7 @@ function App() {
     return () => clearInterval(interval)
   }, [walletAddress])
 
+
   // Fetch leaderboard on mount and periodically
   useEffect(() => {
     fetchLeaderboard()
@@ -619,18 +615,18 @@ function App() {
   const handleDailyClaim = async () => {
     if (claimCooldown > 0 || !walletAddress) return
     
+    const walletProvider = getWalletProvider()
+    if (!walletProvider) {
+      alert('Please connect your wallet to claim daily bonus')
+      return
+    }
+    
     try {
-      if (typeof window.ethereum === 'undefined') {
-        alert('Please install MetaMask to claim daily bonus')
-        return
-      }
-
       await connectToQieNetwork()
-
       const { ethers } = await import('ethers')
       const { CONTRACT_ADDRESS, CONTRACT_ABI } = await import('./utils/contract.js')
       
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(walletProvider)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
       
@@ -670,10 +666,11 @@ function App() {
       setIsMinting(true)
       await connectToQieNetwork()
 
+      const walletProvider = getWalletProvider()
       const { ethers } = await import('ethers')
       const { CONTRACT_ADDRESS, CONTRACT_ABI } = await import('./utils/contract.js')
       
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(walletProvider)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
       
@@ -719,10 +716,11 @@ function App() {
       setIsResolving(true)
       await connectToQieNetwork()
 
+      const walletProvider = getWalletProvider()
       const { ethers } = await import('ethers')
       const { CONTRACT_ADDRESS, CONTRACT_ABI } = await import('./utils/contract.js')
       
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(walletProvider)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
       
@@ -770,10 +768,11 @@ function App() {
       setIsMintingNFT(prev => ({ ...prev, [tokenId]: true }))
       await connectToQieNetwork()
 
+      const walletProvider = getWalletProvider()
       const { ethers } = await import('ethers')
       const { CONTRACT_ADDRESS, CONTRACT_ABI } = await import('./utils/contract.js')
       
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(walletProvider)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
       
@@ -897,9 +896,20 @@ function App() {
               Launch App
             </button>
           ) : walletAddress ? (
-            <button className="btn primary" disabled>
-              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-            </button>
+            <div className="wallet-address-container">
+              <button className="btn primary" disabled>
+                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              </button>
+              <button 
+                className="btn wallet-disconnect-btn"
+                onClick={() => disconnectWallet()}
+                title="Disconnect wallet"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 2L2 8l6 6M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
           ) : (
             <button 
               className="btn primary" 
@@ -1843,8 +1853,8 @@ function App() {
         <DocsModal onClose={() => setShowDocs(false)} />
       )}
 
-      {/* Footer - always rendered but with visibility/opacity to prevent layout shifts */}
-      <footer className={`app-footer ${showFooter ? 'visible' : 'hidden'}`}>
+      {/* Footer - always visible */}
+      <footer className="app-footer">
         <div className="footer-separator"></div>
         <div className="footer-content">
           <div className="footer-left">

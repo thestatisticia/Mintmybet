@@ -10,6 +10,8 @@
   padding: 0;
   min-height: 100vh;
   background: #000000;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-header {
@@ -34,7 +36,12 @@
 .content {
   padding: 24px;
   margin: 0;
+  margin-top: 26px;
   width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
 }
 
 .dashboard-grid {
@@ -704,13 +711,6 @@
   transform: translateY(-1px);
 }
 
-.content {
-  margin-top: 26px;
-  display: flex;
-  flex-direction: column;
-  gap: 26px;
-  width: 100%;
-}
 
 .hero {
   display: grid;
@@ -1473,29 +1473,7 @@
   width: 100%;
   padding: 24px;
   background: #000000;
-  margin-top: 60px;
-  transition: opacity 0.4s ease, transform 0.4s ease;
-  will-change: opacity, transform;
-  contain: layout style paint;
-}
-
-.app-footer.hidden {
-  opacity: 0;
-  transform: translateY(20px);
-  pointer-events: none;
-  visibility: hidden;
-  height: 0;
-  padding: 0;
-  margin: 0;
-  overflow: hidden;
-}
-
-.app-footer.visible {
-  opacity: 1;
-  transform: translateY(0);
-  visibility: visible;
-  pointer-events: auto;
-  height: auto;
+  margin-top: auto;
 }
 
 .footer-separator {
@@ -1801,5 +1779,74 @@
   .docs-section pre {
     font-size: 12px;
     padding: 12px;
+  }
+}
+
+/* Wallet Address Container Styles */
+.wallet-address-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallet-disconnect-btn {
+  background: rgba(255, 107, 107, 0.1) !important;
+  border: 1px solid rgba(255, 107, 107, 0.3) !important;
+  color: #ff6b6b !important;
+  padding: 8px 12px !important;
+  min-width: auto !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.wallet-disconnect-btn:hover {
+  background: rgba(255, 107, 107, 0.2) !important;
+  border-color: rgba(255, 107, 107, 0.5) !important;
+  transform: translateX(-2px);
+}
+
+.wallet-disconnect-btn svg {
+  display: block;
+}
+
+/* Wallet Menu Styles */
+.wallet-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.wallet-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #0a0e27;
+  border: 1px solid rgba(79, 209, 197, 0.2);
+  border-radius: 8px;
+  min-width: 280px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.wallet-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  transition: background 0.2s ease;
+}
+
+.wallet-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 768px) {
+  .wallet-menu {
+    right: 0;
+    min-width: 240px;
   }
 }
