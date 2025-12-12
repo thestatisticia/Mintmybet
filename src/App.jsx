@@ -51,6 +51,7 @@ function App() {
   const [currentPriceForView, setCurrentPriceForView] = useState(null)
   const [hiddenNFTs, setHiddenNFTs] = useState(new Set())
   const [showFooter, setShowFooter] = useState(false)
+  const [showDocs, setShowDocs] = useState(false)
 
   // Fetch current round and active assets from contract
   const fetchRoundData = async () => {
@@ -1837,6 +1838,11 @@ function App() {
         />
       )}
 
+      {/* Docs Modal */}
+      {showDocs && (
+        <DocsModal onClose={() => setShowDocs(false)} />
+      )}
+
       {/* Footer - always rendered but with visibility/opacity to prevent layout shifts */}
       <footer className={`app-footer ${showFooter ? 'visible' : 'hidden'}`}>
         <div className="footer-separator"></div>
@@ -1854,12 +1860,16 @@ function App() {
                 <rect x="2" y="2" width="8" height="8" fill="currentColor" opacity="0.4"/>
               </svg>
             </a>
-            <a href="https://docs.qie.digital" target="_blank" rel="noopener noreferrer" className="footer-link">
+            <button 
+              onClick={() => setShowDocs(true)}
+              className="footer-link"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}
+            >
               Docs
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }}>
                 <path d="M2 2h2v2H2V2zm0 3h2v2H2V5zm0 3h2v2H2V8zm3-6h5v1H5V2zm0 3h5v1H5V5zm0 3h5v1H5V8z" fill="currentColor" opacity="0.4"/>
               </svg>
-            </a>
+            </button>
           </div>
         </div>
       </footer>
@@ -2185,6 +2195,400 @@ function PredictionDetailModal({
             >
               View on Explorer →
             </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Docs Modal Component
+function DocsModal({ onClose }) {
+  return (
+    <div 
+      className="docs-modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="docs-modal">
+        <div className="docs-modal-header">
+          <h2>Documentation</h2>
+          <button 
+            className="docs-modal-close"
+            onClick={onClose}
+            aria-label="Close documentation"
+          >
+            ×
+          </button>
+        </div>
+        <div className="docs-modal-content">
+          <div className="docs-section">
+            <h1>MintMyBet Documentation</h1>
+            <p>Complete guide to using, deploying, and integrating with MintMyBet.</p>
+
+            <h2>Table of Contents</h2>
+            <ul>
+              <li><a href="#overview">Overview</a></li>
+              <li><a href="#network-setup">QIE Network Setup</a></li>
+              <li><a href="#deployment">Deployment Guide</a></li>
+              <li><a href="#contract">Contract Implementation</a></li>
+              <li><a href="#oracle">Oracle Integration</a></li>
+            </ul>
+
+            <section id="overview">
+              <h2>Overview</h2>
+              <p>MintMyBet is an NFT-based prediction game built on the QIE network. Users can make predictions on cryptocurrency prices, earn points, compete on leaderboards, and mint NFTs based on their predictions.</p>
+            </section>
+
+            <section id="network-setup">
+              <h2>QIE Network Setup Guide</h2>
+              
+              <h3>QIE Mainnet Network Details</h3>
+              <ul>
+                <li><strong>Network Name:</strong> QIEMainnet</li>
+                <li><strong>Chain ID:</strong> 1990</li>
+                <li><strong>Currency Symbol:</strong> QIEV3</li>
+                <li><strong>RPC URLs:</strong>
+                  <ul>
+                    <li>Primary: <code>https://rpc1mainnet.qie.digital/</code></li>
+                    <li>Backup 1: <code>https://rpc2mainnet.qie.digital/</code></li>
+                    <li>Backup 2: <code>https://rpc5mainnet.qie.digital/</code></li>
+                  </ul>
+                </li>
+                <li><strong>Block Explorer:</strong> <code>https://mainnet.qie.digital/</code></li>
+              </ul>
+
+              <h3>MetaMask Setup</h3>
+              <h4>Option 1: Automatic (Recommended)</h4>
+              <p>The app includes a function to automatically add QIE network to MetaMask. Users can click a "Connect to QIE" button that will prompt MetaMask to add the network.</p>
+
+              <h4>Option 2: Manual Setup</h4>
+              <ol>
+                <li>Open MetaMask</li>
+                <li>Click network dropdown (top of extension)</li>
+                <li>Click "Add Network" or "Add Network Manually"</li>
+                <li>Enter the following details:
+                  <ul>
+                    <li><strong>Network Name:</strong> QIEMainnet</li>
+                    <li><strong>RPC URL:</strong> <code>https://rpc1mainnet.qie.digital/</code></li>
+                    <li><strong>Chain ID:</strong> 1990</li>
+                    <li><strong>Currency Symbol:</strong> QIEV3</li>
+                    <li><strong>Block Explorer URL:</strong> <code>https://mainnet.qie.digital/</code></li>
+                  </ul>
+                </li>
+                <li>Save and switch to QIEMainnet</li>
+              </ol>
+
+              <h3>Getting QIEV3 Tokens</h3>
+              <p>You'll need QIEV3 tokens for:</p>
+              <ul>
+                <li><strong>Gas fees</strong> (for all transactions)</li>
+                <li><strong>Minting resolved NFTs</strong> (0.1 QIEV3 per NFT)</li>
+              </ul>
+              <p><strong>How to Get QIEV3:</strong></p>
+              <ol>
+                <li>Purchase from exchanges that support QIE</li>
+                <li>Bridge from other networks (if bridge available)</li>
+                <li>Receive from other QIE users</li>
+              </ol>
+            </section>
+
+            <section id="deployment">
+              <h2>Deployment Guide</h2>
+              
+              <h3>Prerequisites</h3>
+              <ol>
+                <li><strong>Node.js</strong> (v18 or higher)</li>
+                <li><strong>QIEV3 tokens</strong> in your deployer wallet for gas fees</li>
+                <li><strong>Private key</strong> of the deployer account (keep this secure!)</li>
+              </ol>
+
+              <h3>Setup</h3>
+              <h4>1. Install Dependencies</h4>
+              <pre><code>npm install</code></pre>
+
+              <h4>2. Install Hardhat (if not already installed)</h4>
+              <pre><code>npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox</code></pre>
+
+              <h4>3. Configure Environment</h4>
+              <ol>
+                <li>Copy the example environment file:
+                  <pre><code>cp .env.example .env</code></pre>
+                </li>
+                <li>Edit <code>.env</code> and add your deployer private key:
+                  <pre><code>DEPLOYER_PRIVATE_KEY=your_private_key_here</code></pre>
+                  <p><strong>⚠️ WARNING:</strong> Never commit your <code>.env</code> file to version control! It's already in <code>.gitignore</code>.</p>
+                </li>
+              </ol>
+
+              <h4>4. Fund Your Deployer Account</h4>
+              <p>Make sure your deployer account has QIEV3 tokens for contract deployment gas fees and initial testing transactions.</p>
+
+              <h3>Deploy Contract</h3>
+              <h4>Deploy to QIE Mainnet</h4>
+              <pre><code>npm run deploy</code></pre>
+              <p>Or directly with Hardhat:</p>
+              <pre><code>npx hardhat run scripts/deploy.js --network qieMainnet</code></pre>
+
+              <h4>What Happens During Deployment</h4>
+              <ol>
+                <li>Contract is compiled</li>
+                <li>Contract is deployed to QIE Mainnet</li>
+                <li>Deployment info is saved to <code>deployments/qieMainnet.json</code></li>
+                <li>Contract address is automatically added to <code>.env</code></li>
+                <li>Deployment details are displayed in console</li>
+              </ol>
+
+              <h3>After Deployment</h3>
+              <ol>
+                <li><strong>Update Frontend:</strong>
+                  <ul>
+                    <li>Open <code>src/utils/contract.js</code></li>
+                    <li>Update <code>CONTRACT_ADDRESS</code> with your deployed address</li>
+                  </ul>
+                </li>
+                <li><strong>Verify Contract (Optional):</strong>
+                  <pre><code>npm run verify</code></pre>
+                </li>
+                <li><strong>Test Contract:</strong>
+                  <ul>
+                    <li>Test minting predictions</li>
+                    <li>Test resolution</li>
+                    <li>Test final minting</li>
+                    <li>Test daily claims</li>
+                    <li>Test leaderboard</li>
+                  </ul>
+                </li>
+              </ol>
+
+              <h3>Security Best Practices</h3>
+              <ol>
+                <li><strong>Never commit <code>.env</code> file</strong> - It contains your private key</li>
+                <li><strong>Use a separate deployer account</strong> - Don't use your main wallet</li>
+                <li><strong>Verify contract after deployment</strong> - Helps users trust your contract</li>
+                <li><strong>Test on testnet first</strong> - If QIE has a testnet available</li>
+                <li><strong>Keep private keys secure</strong> - Use hardware wallet if possible</li>
+              </ol>
+            </section>
+
+            <section id="contract">
+              <h2>Contract Implementation Guide</h2>
+              
+              <h3>Overview</h3>
+              <p>The <code>MintMyBet.sol</code> contract implements a complete NFT-based prediction game with points system, leaderboard, and QIE Oracle integration.</p>
+
+              <h3>Key Features</h3>
+              
+              <h4>1. Prediction Minting</h4>
+              <ul>
+                <li><strong>FREE first mint</strong> - Users only pay gas (need QIE for gas fees)</li>
+                <li>Asset must be active in current round</li>
+                <li>Stores entry price from oracle</li>
+                <li>Sets resolve time based on duration (10min, 30min, 60min)</li>
+                <li>Assigns rarity: Common (10min), Rare (30min), Epic (60min)</li>
+              </ul>
+
+              <h4>2. Resolution System</h4>
+              <ul>
+                <li><strong>FREE resolution</strong> - Just updates metadata</li>
+                <li>Checks if resolve time has passed</li>
+                <li>Fetches current oracle price</li>
+                <li>Determines WIN/LOSE outcome</li>
+                <li>Awards/deducts points based on outcome and rarity</li>
+              </ul>
+
+              <h4>3. Final NFT Minting</h4>
+              <ul>
+                <li><strong>Costs 0.1 QIE</strong> - User pays to mint resolved NFT to wallet</li>
+                <li>NFT becomes visible in MetaMask/OpenSea</li>
+                <li>Includes complete metadata (image, attributes, rarity)</li>
+              </ul>
+
+              <h4>4. Points System</h4>
+              <p><strong>Points Calculation:</strong></p>
+              <ul>
+                <li>Win: +1 point (Common), +2 points (Rare), +3 points (Epic)</li>
+                <li>Loss: -0.5 points</li>
+                <li>Daily Claim: +1 point (resets at midnight UTC)</li>
+              </ul>
+              <p><strong>Storage:</strong></p>
+              <ul>
+                <li>Points stored as integers × 10 for precision (10 = 1.0 point)</li>
+                <li>Example: 45.5 points stored as 455</li>
+              </ul>
+
+              <h4>5. Leaderboard</h4>
+              <p><strong>Features:</strong></p>
+              <ul>
+                <li>Top 50 players ranked by points</li>
+                <li>Ties broken by win rate (higher win rate ranks higher)</li>
+                <li>Sorted automatically after each update</li>
+                <li>Weekly reset (anyone can call after 7 days)</li>
+              </ul>
+
+              <h4>6. Daily Claim System</h4>
+              <ul>
+                <li>Users can claim +1 point once per day</li>
+                <li>Resets at 12:00 AM UTC (midnight)</li>
+                <li>Requires MetaMask transaction</li>
+                <li>Shows cooldown timer on button</li>
+              </ul>
+
+              <h4>7. Round System</h4>
+              <p><strong>Round 1 (Even Hours: 0, 2, 4, 6...):</strong></p>
+              <ul>
+                <li>Active Assets: ETH, QIE, BTC</li>
+              </ul>
+              <p><strong>Round 2 (Odd Hours: 1, 3, 5, 7...):</strong></p>
+              <ul>
+                <li>Active Assets: XRP, SOL</li>
+              </ul>
+              <p><strong>Features:</strong></p>
+              <ul>
+                <li>Each round lasts 1 hour</li>
+                <li>Automatic rotation based on block timestamp</li>
+                <li>Countdown shows time until next round</li>
+                <li>Only active assets can be minted</li>
+              </ul>
+
+              <h4>8. Rarity System</h4>
+              <p><strong>Rarity Levels:</strong></p>
+              <ul>
+                <li><strong>Common</strong> (10 minutes): 1x points, gray/blue styling</li>
+                <li><strong>Rare</strong> (30 minutes): 2x points, teal/cyan styling</li>
+                <li><strong>Epic</strong> (60 minutes): 3x points, purple styling</li>
+              </ul>
+
+              <h3>Contract Functions</h3>
+              <h4>Public Functions</h4>
+              <pre><code>// Minting
+mintPrediction(asset, predictionType, durationMinutes) - FREE (gas only)
+mintResolvedNFT(tokenId) - Costs 0.1 QIE
+
+// Resolution
+resolvePrediction(tokenId) - FREE
+
+// Points & Leaderboard
+claimDailyBonus() - FREE (once per day)
+getUserStats(user) - View user stats
+getLeaderboard() - View top 50
+resetLeaderboard() - Weekly reset (anyone can call after 7 days)
+
+// Round & Asset Info
+getCurrentRound() - Returns 1 or 2
+getActiveAssets() - Returns active assets array
+isAssetActive(asset) - Check if asset is active
+getTimeUntilNextRound() - Seconds until next round
+
+// Oracle
+getLatestPrice(assetSymbol) - Get current price from QIE Oracle</code></pre>
+            </section>
+
+            <section id="oracle">
+              <h2>QIE Oracle Integration Guide</h2>
+              
+              <h3>Overview</h3>
+              <p>QIE Oracle follows the <strong>Chainlink AggregatorV3Interface</strong> standard, making it compatible with existing Chainlink integrations. All price-fetching functions are read-only (view functions), meaning they consume minimal gas and are safe for frequent calls.</p>
+
+              <h3>Asset Oracle Addresses</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Symbol</th>
+                    <th>Contract Address</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Bitcoin</td>
+                    <td>BTC</td>
+                    <td><code>0x9E596d809a20A272c788726f592c0d1629755440</code></td>
+                  </tr>
+                  <tr>
+                    <td>Ethereum</td>
+                    <td>ETH</td>
+                    <td><code>0x4bb7012Fbc79fE4Ae9B664228977b442b385500d</code></td>
+                  </tr>
+                  <tr>
+                    <td>Ripple</td>
+                    <td>XRP</td>
+                    <td><code>0x804582B1f8Fea73919e7c737115009f668f97528</code></td>
+                  </tr>
+                  <tr>
+                    <td>Solana</td>
+                    <td>SOL</td>
+                    <td><code>0xe86999c8e6C8eeF71bebd35286bCa674E0AD7b21</code></td>
+                  </tr>
+                  <tr>
+                    <td>QIE Native</td>
+                    <td>QIE</td>
+                    <td><code>0x3Bc617cF3A4Bb77003e4c556B87b13D556903D17</code></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h3>Smart Contract Integration</h3>
+              <h4>1. Import the Oracle Interface</h4>
+              <pre><code>import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";</code></pre>
+              <p>QIE Oracle is compatible with Chainlink's AggregatorV3Interface standard.</p>
+
+              <h4>2. Instantiate the Oracle</h4>
+              <pre><code>{`AggregatorV3Interface public priceFeed;
+
+constructor(address oracleAddress) {
+    priceFeed = AggregatorV3Interface(oracleAddress);
+}`}</code></pre>
+              <p>Replace <code>oracleAddress</code> with the specific QIE Oracle address for your asset (see table above).</p>
+
+              <h4>3. Fetch Latest Price</h4>
+              <pre><code>{`function getLatestPrice() public view returns (int256) {
+    (
+        , 
+        int256 price,
+        , 
+        , 
+    ) = priceFeed.latestRoundData();
+
+    return price;
+}`}</code></pre>
+              <p>This function is read-only (view) and consumes minimal gas.</p>
+
+              <h3>Gas Efficiency</h3>
+              <p>✅ <strong>All price-fetching functions are non-state-changing (read-only)</strong></p>
+              <ul>
+                <li>No transaction needs to be sent</li>
+                <li>No gas is spent reading data (unless used inside a transaction)</li>
+                <li>Safe to use in frequent or lightweight calls</li>
+                <li>Perfect for real-time price updates</li>
+              </ul>
+
+              <h3>Frontend Integration</h3>
+              <p>The app includes oracle configuration and utility functions:</p>
+              <ul>
+                <li><strong><code>src/config/oracle.js</code></strong> - Oracle addresses and ABI</li>
+                <li><strong><code>src/utils/oracle.js</code></strong> - Helper functions for fetching prices</li>
+              </ul>
+
+              <h3>Integration Checklist</h3>
+              <ul>
+                <li>[ ] Import AggregatorV3Interface in your contract</li>
+                <li>[ ] Set oracle address in constructor/initializer</li>
+                <li>[ ] Implement <code>latestRoundData()</code> call</li>
+                <li>[ ] Handle price decimals correctly (usually 8 for USD pairs)</li>
+                <li>[ ] Add error handling for oracle failures</li>
+                <li>[ ] Test with QIE testnet before mainnet deployment</li>
+              </ul>
+
+              <h3>Notes</h3>
+              <ul>
+                <li>QIE Oracle follows Chainlink standards for maximum compatibility</li>
+                <li>Prices are returned as <code>int256</code> - convert to <code>uint256</code> if needed</li>
+                <li>Always check <code>updatedAt</code> timestamp to ensure fresh data</li>
+                <li>Consider implementing a staleness threshold for production use</li>
+              </ul>
+            </section>
           </div>
         </div>
       </div>
